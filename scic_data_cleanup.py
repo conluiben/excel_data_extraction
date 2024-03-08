@@ -202,7 +202,7 @@ all_properties = ["P/N", "SN", "model", "brand", "grade"]
 # important lists / constants
 units_others = [{
     "prop": "weight",
-    "unit": ["kg","kg/s","kgs","lbs"]
+    "unit": ["kg","kg/s","kgs","lbs","ton","tons"]
 },{
     "prop": "cross-sectional area",
     "unit": ["mm sq","mm sq."]
@@ -285,10 +285,12 @@ print(units_others_list)
 with open(input_file_path, 'r', encoding='utf-8') as input_file, open(output_file_path, 'w', newline='', encoding='utf-8') as output_file:
     # Create CSV reader and writer objects
     csv_reader = csv.DictReader(input_file)
-    new_columns = ['info','diameter', 'color', 'wire type']  # ! add 'dimensions' when extraction fixed
+    new_columns = ['info','diameter', 'color', 'wire type', 'configuration','style','size']  # ! add 'dimensions' when extraction fixed
+    
+    # TODO 03-08-2024: add 3 columns
     
     # csv_columns = csv_reader.fieldnames[:csv_reader.fieldnames.index('Description') + 1] + new_columns + all_properties + csv_reader.fieldnames[csv_reader.fieldnames.index('Description') + 1:]
-    csv_columns = csv_reader.fieldnames + new_columns + all_properties + units_others_list
+    csv_columns = ['extracted'] + csv_reader.fieldnames + new_columns + all_properties + units_others_list
     csv_writer = csv.DictWriter(output_file, fieldnames=csv_columns)
     
     # Write the header to the output file
@@ -340,7 +342,10 @@ with open(input_file_path, 'r', encoding='utf-8') as input_file, open(output_fil
                     # check if there already is a property, so we just append the value
                     try:
                         if(row[prop] is not None or row[prop]!=''):
-                            row[prop] += ", " + match[0]
+                            if(row[prop]=='length'):
+                                row[prop] += " X " + match[0]
+                            else:
+                                row[prop] += ", " + match[0]
                     except KeyError:
                         row[prop] = match[0]
         
@@ -368,17 +373,46 @@ with open(input_file_path, 'r', encoding='utf-8') as input_file, open(output_fil
                     except KeyError:
                         row[prop] = match
         
-        # TODO: continue the extraction process below (e.g. measurements)
-        # todo sub 1: replace SN/ or S/N with SN (correct mapping) --- note: only very few entries have misspelled attribute
+        # TODO: extract all properties and combine cells!
+        configuration_props = ['current', 'voltage rating', 'power rating', 'apparent power rating', 'horsepower', 'angle', 'frequency', 'color temperature', 'capacitance', 'inductance', 'conductors', 'pins', 'phase', 'pole']
+        configuration_values = []
+        for a_prop in configuration_props:
+            try:
+                configuration_values.append(row[a_prop])
+            except:
+                pass
+                
+        
+        row['configuration'] = " ".join(configuration_values)
+        # row['configuration'] = ['weight', 'cross-sectional area', 'length', 'current', 'voltage rating', 'power rating', 'apparent power rating', 'horsepower', 'angle', 'frequency', 'color temperature', 'capacitance', 'inductance', 'conductors', 'pins', 'phase', 'pole']
 
+        size_props = ['weight','length']
+        size_values = []
+        for a_prop in size_props:
+            try:
+                size_values.append(row[a_prop])
+                if (a_prop=='diameter'):
+                    size_values.append("DIA")
+            except:
+                pass
+            
+        row['size'] = " X ".join(size_values)
+        
         # ---------------------
         # ---------------------
         # ---------------------
         
         # paste the remaining text under info
         row["info"] = total_descr
+        # check whether data was fully extracted or not
+        if row["info"]==row["Item Category"]:
+            row["extracted"] = "Y"
+        else:
+            row["extracted"] = ""
         # finally, write the row in CSV
         csv_writer.writerow(row)
+
+    
 
 print("Processing completed. Results saved to:", output_file_path)
 # print("Trying to extract de")
