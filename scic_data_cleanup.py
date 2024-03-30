@@ -87,8 +87,13 @@ def extract_thickness(description):
         """
         # Define a regex pattern for valid diameter values
         # first regex extracts mixed fractions
-        diameter_pattern = re.compile(r'(?:\S+\s+)*?((?:\d+\s+)?\d+/\d+\s*(?:' + '|'.join(units_dia) + r'))',re.IGNORECASE)   # good for mixed or unmixed fractions
-        match = diameter_pattern.search(word)
+        # pattern = re.compile(r'(?:\S+\s+)*?(\d+(?:[-.]\d+)?\s*)',re.IGNORECASE)
+        pattern = re.compile(r'(?:\S+\s+)*?(\d+(?:[-.]\d+)?\s*\w+)',re.IGNORECASE)
+        # pattern = f'(?:\S+\s+)*?(\d+(?:[-.]\d+)?\s*)'
+        # diameter_pattern = re.compile(r'(?:\S+\s+)*?((?:\d+\s+)?\d+/\d+\s*THK)',re.IGNORECASE)   # good for mixed or unmixed fractions
+        # diameter_pattern = re.compile(r'(?:\S+\s+)*?((?:\d+\s+)?\d+/\d+\s*(?:' + '|'.join(units_dia) + r'))',re.IGNORECASE)   # good for mixed or unmixed fractions
+        # match = diameter_pattern.search(word)
+        match = pattern.search(word)
         if match:
             return match.group(1)
         else:
@@ -106,7 +111,12 @@ def extract_thickness(description):
     if dia_match:
         # Extract the substring before and after "DIA"
         before_dia, after_dia = description.split("THK", 1)
-
+        
+        # reverse the sentence of before_dia (so it prioritizes adjacent values)
+        before_dia_split = before_dia.split(" ")
+        before_dia_split = before_dia_split[::-1]
+        before_dia = " ".join(before_dia_split)
+        
         # Check if the word preceding "DIA" is a valid diameter value
         before_dia = is_valid_thickness_value(before_dia.strip())
         if before_dia is not None:
@@ -269,7 +279,7 @@ units_others = [{
     "unit": ["cu. ft.","ml","litre","liter","liters","litres"]
 },{
     "prop": "length",
-    "unit": ["mm","m","in","ft","ml","cm","ft","ft.","meters","mtrs"]
+    "unit": ["mm","m","in","inch","inches","ft","feet","ml","cm","ft","ft.","meters","mtrs"]
 },{
     "prop": "current",
     "unit": ["a","amp","amps","ampere"]
@@ -471,6 +481,7 @@ with open(input_file_path, 'r', encoding='utf-8') as input_file, open(output_fil
         # TODO: extract all properties and combine cells!
         # configuration_props = ['current', 'voltage rating', 'power rating', 'apparent power rating', 'horsepower', 'angle', 'frequency', 'color temperature', 'capacitance', 'inductance', 'conductors', 'pins', 'phase', 'pole','hole','force','gang','grade','no.']
         configuration_props = [a_prop for a_prop in units_others_list if a_prop not in ("weight","volume","length")]
+        configuration_props.extend(['grade','no.'])
         configuration_values = []
         for a_prop in configuration_props:
             try:
@@ -515,11 +526,13 @@ with open(input_file_path, 'r', encoding='utf-8') as input_file, open(output_fil
         size_values = []
         for a_prop in size_props:
             try:
-                size_values.append(row[a_prop])
+                
                 if (a_prop=='diameter'):
-                    size_values.append("DIA")
+                    size_values.append(row[a_prop] + " DIA")
                 elif (a_prop=='thickness'):
-                    size_values.append("THK")
+                    size_values.append(row[a_prop] + " THK")
+                else:
+                    size_values.append(row[a_prop])
             except:
                 pass
             
