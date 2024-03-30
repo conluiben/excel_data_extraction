@@ -195,20 +195,31 @@ def extract_with(input_string):
 # output_file_path = 'data_cleanup_physical-inventory/fresh-0304/modified_consmat_csv_03-06.csv' 
 # input_file_path = 'data_cleanup_physical-inventory/physical_inventory_joined_checkpoint-full.csv'  
 # output_file_path = 'data_cleanup_physical-inventory/modified_sample.csv' 
+# ? Original values
 input_file_path = 'masterlist_03-08/masterlist_orig_0308_csv.csv' 
 output_file_path = 'masterlist_03-08/masterlist_extracted_0308_csv.csv' 
-all_properties = ["P/N", "SN", "model", "brand", "grade"]
+# ? Modified for personal assignment
+input_file_path = 'masterlist_03-27/masterlist_raw_categories_csv.csv' 
+output_file_path = 'masterlist_03-27/masterlist_categories_extracted_csv.csv'
+# categ_assigned = ['CON14', 'CON17', 'CON26', 'CON35', 'FWK18', 'FWK30', 'FWK31', 'LFO12', 'SPR11', 'SPR32', 'SPR44', 'SPR49', 'SPR53', 'SPR61', 'SPR65', 'SUP13', 'SUP17']
+
+
+ 
+all_properties = ["P/N", "SN", "model", "brand", "grade","no.","sch"]
 
 # important lists / constants
 units_others = [{
     "prop": "weight",
-    "unit": ["kg","kg/s","kgs","lbs","ton","tons"]
+    "unit": ["kg","kg/s","kgs","kilo","kilos","lbs","ton","tons","gram","grams","g","lbs/ft.","lbs/ft","lb","lb.","lbs","lbs."]
 },{
     "prop": "cross-sectional area",
     "unit": ["mm sq","mm sq."]
 },{
+    "prop": "volume",
+    "unit": ["cu. ft.","ml","litre","liter","liters","litres"]
+},{
     "prop": "length",
-    "unit": ["mm","m","in","ft"]
+    "unit": ["mm","m","in","ft","ml","cm","ft","ft.","meters","mtrs"]
 },{
     "prop": "current",
     "unit": ["a","amp","amps","ampere"]
@@ -251,6 +262,21 @@ units_others = [{
 },{
     "prop": "pole",
     "unit": ["p","pole","poles"]
+},{
+    "prop": "hole",
+    "unit": ["hole","holes","-hole","-holes"]
+},{
+    "prop": "force",
+    "unit": ["kn"]
+},{
+    "prop": "gang",
+    "unit": ["gang","-gang"]
+},{
+    "prop": "teeth",
+    "unit": ["teeth","-teeth"]
+},{
+    "prop": "spline",
+    "unit": ["spline"]
 }]
 
 # note: conductors unit "C" may also be Coulomb (charge)
@@ -282,10 +308,11 @@ print(units_others_list)
 #      PROGRAM BEGINS HERE
 # =============================
 
-with open(input_file_path, 'r', encoding='utf-8') as input_file, open(output_file_path, 'w', newline='', encoding='utf-8') as output_file:
+# ? encoding: utf-8 or latin-1
+with open(input_file_path, 'r', encoding='latin-1') as input_file, open(output_file_path, 'w', newline='', encoding='utf-8') as output_file:    
     # Create CSV reader and writer objects
     csv_reader = csv.DictReader(input_file)
-    new_columns = ['info','diameter', 'color', 'wire type', 'configuration','style','size']  # ! add 'dimensions' when extraction fixed
+    new_columns = ['info', 'color', 'configuration','style','size','diameter', 'wire type']  # ! add 'dimensions' when extraction fixed
     
     # TODO 03-08-2024: add 3 columns
     
@@ -297,13 +324,17 @@ with open(input_file_path, 'r', encoding='utf-8') as input_file, open(output_fil
     csv_writer.writeheader()
 
     # Iterate through each row and update 'fresh' column
-    for row in csv_reader:        
+    for row in csv_reader:
+        # ! Important: check if assigned row is active, otherwise skip
+        # if row["Product Group Code"] not in categ_assigned:
+        #     continue
         # ? temporary comment: if description 2 already contains the keyword from Description column, splice! 
         # if(row["Item Category"].lower() in row["Description"].strip().lower()):
         #     total_descr = row["Description"].replace(row["Item Category"],"",1).strip().strip(punctuation)
         # else:
         #     total_descr = row["Description"]
-        total_descr = row["Description"].strip().strip(punctuation)
+        total_descr = row["Item Category"].strip().strip(punctuation)
+        # total_descr = row["Description"].strip().strip(punctuation)
         
         # replace all colons AND commas AND semicolons AND periods with spaces
         total_descr = total_descr.replace(": "," ")
@@ -342,7 +373,7 @@ with open(input_file_path, 'r', encoding='utf-8') as input_file, open(output_fil
                     # check if there already is a property, so we just append the value
                     try:
                         if(row[prop] is not None or row[prop]!=''):
-                            if(row[prop]=='length'):
+                            if(prop=='length'):
                                 row[prop] += " X " + match[0]
                             else:
                                 row[prop] += ", " + match[0]
@@ -374,19 +405,30 @@ with open(input_file_path, 'r', encoding='utf-8') as input_file, open(output_fil
                         row[prop] = match
         
         # TODO: extract all properties and combine cells!
-        configuration_props = ['current', 'voltage rating', 'power rating', 'apparent power rating', 'horsepower', 'angle', 'frequency', 'color temperature', 'capacitance', 'inductance', 'conductors', 'pins', 'phase', 'pole']
+        # configuration_props = ['current', 'voltage rating', 'power rating', 'apparent power rating', 'horsepower', 'angle', 'frequency', 'color temperature', 'capacitance', 'inductance', 'conductors', 'pins', 'phase', 'pole','hole','force','gang','grade','no.']
+        configuration_props = [a_prop for a_prop in units_others_list if a_prop not in ("weight","volume","length")]
         configuration_values = []
         for a_prop in configuration_props:
             try:
-                configuration_values.append(row[a_prop])
+                if a_prop=="grade" and row[a_prop] not in [None,""]:
+                    configuration_values.append("GRADE")
+                    configuration_values.append(row[a_prop])
+                elif a_prop=="no." and row[a_prop] not in [None,""]:
+                    configuration_values.append("No.")
+                    configuration_values.append(row[a_prop])
+                else:
+                    configuration_values.append(row[a_prop])
             except:
                 pass
-                
         
+        # ! additional: extract remaining words from the description which have a numerical value
+        # TODO: fill in the code snippet below
+        
+        # combine all configuration values to one tab
         row['configuration'] = " ".join(configuration_values)
         # row['configuration'] = ['weight', 'cross-sectional area', 'length', 'current', 'voltage rating', 'power rating', 'apparent power rating', 'horsepower', 'angle', 'frequency', 'color temperature', 'capacitance', 'inductance', 'conductors', 'pins', 'phase', 'pole']
 
-        size_props = ['weight','length']
+        size_props = ['weight','length','diameter']
         size_values = []
         for a_prop in size_props:
             try:
@@ -410,6 +452,7 @@ with open(input_file_path, 'r', encoding='utf-8') as input_file, open(output_fil
         else:
             row["extracted"] = ""
         # finally, write the row in CSV
+        
         csv_writer.writerow(row)
 
     
