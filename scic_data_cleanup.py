@@ -74,6 +74,56 @@ def extract_diameter(description):
 
     return None, description.strip().strip(punctuation)
 
+def extract_thickness(description):
+    """
+    Extracts the THICKNESS from the description, based on the keyword "THK"
+    Exact same reference from extract_diameter function above
+    Contains a helper function is_valid_thickness_value
+    Note: references the unit_length list (update accordingly!)
+    """
+    def is_valid_thickness_value(word):
+        """
+        Checks if the extracted value is valid (i.e. has a number and a valid unit measurement of length)
+        """
+        # Define a regex pattern for valid diameter values
+        # first regex extracts mixed fractions
+        diameter_pattern = re.compile(r'(?:\S+\s+)*?((?:\d+\s+)?\d+/\d+\s*(?:' + '|'.join(units_dia) + r'))',re.IGNORECASE)   # good for mixed or unmixed fractions
+        match = diameter_pattern.search(word)
+        if match:
+            return match.group(1)
+        else:
+            # next regex captures whole numbers
+            diameter_pattern = re.compile(r'(?:\S+\s+)*?(\d+\s*(?:'+'|'.join(units_dia)+r'))(?=\s|$)',re.IGNORECASE)
+            match = diameter_pattern.search(word)
+            if match:
+                return match.group(1)        
+        return None
+        # return bool(match)
+    
+    # Use regex to find the diameter in the description
+    dia_match = re.search(r'\bTHK\b', description, re.IGNORECASE)
+    
+    if dia_match:
+        # Extract the substring before and after "DIA"
+        before_dia, after_dia = description.split("THK", 1)
+
+        # Check if the word preceding "DIA" is a valid diameter value
+        before_dia = is_valid_thickness_value(before_dia.strip())
+        if before_dia is not None:
+            remaining_text = re.sub(before_dia, ' ', description, 1, flags=re.IGNORECASE)
+            remaining_text = re.sub(r'\bTHK\b', '', remaining_text, flags=re.IGNORECASE)
+            # remaining_text = re.sub("DIA", '', remaining_text, 1, flags=re.IGNORECASE)
+            return before_dia.strip(), remaining_text.strip().strip(punctuation)
+
+        after_dia = is_valid_thickness_value(after_dia.strip())
+        if after_dia is not None:
+            remaining_text = re.sub(after_dia, ' ', description, 1, flags=re.IGNORECASE)
+            remaining_text = re.sub(r'\bTHK\b', '', remaining_text, flags=re.IGNORECASE)
+            # remaining_text = re.sub("DIA", '', remaining_text, 1, flags=re.IGNORECASE)
+            return after_dia.strip(), remaining_text.strip().strip(punctuation)
+
+    return None, description.strip().strip(punctuation)
+
 def extract_units(input_string):      
     unit_pattern = '|'.join(re.escape(unit) for unit in unit_property_map.keys())
     all_matches = []
@@ -196,21 +246,21 @@ def extract_with(input_string):
 # input_file_path = 'data_cleanup_physical-inventory/physical_inventory_joined_checkpoint-full.csv'  
 # output_file_path = 'data_cleanup_physical-inventory/modified_sample.csv' 
 # ? Original values
-input_file_path = 'masterlist_03-08/masterlist_orig_0308_csv.csv' 
-output_file_path = 'masterlist_03-08/masterlist_extracted_0308_csv.csv' 
+# input_file_path = 'masterlist_03-08/masterlist_orig_0308_csv.csv' 
+# output_file_path = 'masterlist_03-08/masterlist_extracted_0308_csv.csv' 
 # ? Modified for personal assignment
-input_file_path = 'masterlist_03-27/masterlist_raw_categories_csv.csv' 
-output_file_path = 'masterlist_03-27/masterlist_categories_extracted_csv.csv'
+input_file_path = 'masterlist_03-30/masterlist_clean_raw_0330.csv' 
+output_file_path = 'masterlist_03-30/masterlist_clean_extracted_0330.csv'
 # categ_assigned = ['CON14', 'CON17', 'CON26', 'CON35', 'FWK18', 'FWK30', 'FWK31', 'LFO12', 'SPR11', 'SPR32', 'SPR44', 'SPR49', 'SPR53', 'SPR61', 'SPR65', 'SUP13', 'SUP17']
 
 
  
-all_properties = ["P/N", "SN", "model", "brand", "grade","no.","sch"]
+all_properties = ["P/N", "SN", "model", "brand", "grade","no.","sch","nema"]
 
 # important lists / constants
 units_others = [{
     "prop": "weight",
-    "unit": ["kg","kg/s","kgs","kilo","kilos","lbs","ton","tons","gram","grams","g","lbs/ft.","lbs/ft","lb","lb.","lbs","lbs."]
+    "unit": ["kg","kg/s","kgs","kilo","kilos","lbs","ton","tons","gram","grams","g","lbs/ft.","lbs/ft","lb","lb.","lbs","lbs.","kg/m","kgs/m"]
 },{
     "prop": "cross-sectional area",
     "unit": ["mm sq","mm sq."]
@@ -277,10 +327,13 @@ units_others = [{
 },{
     "prop": "spline",
     "unit": ["spline"]
+},{
+    "prop": "speed",
+    "unit": ["rpm"]
 }]
 
 # note: conductors unit "C" may also be Coulomb (charge)
-units_dia = ["mm","cm","m","in"]      # for diameter
+units_dia = ["mm","cm","m","in","inch","inches","mtr","mtrs","meters"]      # for diameter
 wire_types = [
     "THHN", "THWN", "XHHW", "USE", "UF", "NM", "MC", "TECK", "BX",
     "RHW", "RW90", "THW", "PV", "FPL", "SER", "SEU", "USE-2", "MTW", "XLP",
@@ -309,10 +362,10 @@ print(units_others_list)
 # =============================
 
 # ? encoding: utf-8 or latin-1
-with open(input_file_path, 'r', encoding='latin-1') as input_file, open(output_file_path, 'w', newline='', encoding='utf-8') as output_file:    
+with open(input_file_path, 'r', encoding='utf-8') as input_file, open(output_file_path, 'w', newline='', encoding='utf-8') as output_file:    
     # Create CSV reader and writer objects
     csv_reader = csv.DictReader(input_file)
-    new_columns = ['info', 'color', 'configuration','style','size','diameter', 'wire type']  # ! add 'dimensions' when extraction fixed
+    new_columns = ['info', 'color', 'configuration','style','size','diameter', 'thickness','wire type']  # ! add 'dimensions' when extraction fixed
     
     # TODO 03-08-2024: add 3 columns
     
@@ -323,8 +376,12 @@ with open(input_file_path, 'r', encoding='latin-1') as input_file, open(output_f
     # Write the header to the output file
     csv_writer.writeheader()
 
+    count = 0
     # Iterate through each row and update 'fresh' column
     for row in csv_reader:
+        # if count > 10:
+        #     break
+        # count+=1
         # ! Important: check if assigned row is active, otherwise skip
         # if row["Product Group Code"] not in categ_assigned:
         #     continue
@@ -333,7 +390,9 @@ with open(input_file_path, 'r', encoding='latin-1') as input_file, open(output_f
         #     total_descr = row["Description"].replace(row["Item Category"],"",1).strip().strip(punctuation)
         # else:
         #     total_descr = row["Description"]
-        total_descr = row["Item Category"].strip().strip(punctuation)
+        # TODO: fetch data from Item Category or Description, wherever needed
+        # total_descr = row["Item Category"].strip().strip(punctuation)
+        total_descr = row["Item Description"].strip().strip(punctuation)
         # total_descr = row["Description"].strip().strip(punctuation)
         
         # replace all colons AND commas AND semicolons AND periods with spaces
@@ -358,6 +417,11 @@ with open(input_file_path, 'r', encoding='latin-1') as input_file, open(output_f
         result_dia, total_descr = extract_diameter(total_descr)
         if result_dia is not None:
             row["diameter"] = result_dia
+        
+        # ! extracting the thickness
+        result_thk, total_descr = extract_thickness(total_descr)
+        if result_thk is not None:
+            row["thickness"] = result_thk
         
         # ! extracting the units
         # TODO: double check function; may accidentally truncate extra text?
@@ -421,20 +485,41 @@ with open(input_file_path, 'r', encoding='latin-1') as input_file, open(output_f
             except:
                 pass
         
+        # ! additional: extract the ITEM CATEGORY NAME from the DESCRIPTION, if applicable
+        if row['Item Category'] in total_descr:
+            total_descr = total_descr.replace(row['Item Category']," ")
+            total_descr = total_descr.strip().strip(punctuation)
+        
+        
         # ! additional: extract remaining words from the description which have a numerical value
-        # TODO: fill in the code snippet below
+        total_descr_list = [e for e in total_descr.split(" ") if e not in ('',None)]
+        # print("total_descr_list")
+        # print(total_descr_list)
+        # total_descr_config = [a_word for a_word in total_descr_list if any(a_char.isdigit() for a_char in a_word)]
+        for a_word in total_descr_list.copy():  # important to reference the copy of the list, not the list itself!
+            # print([a_char.isdigit() for a_char in a_word])
+            if any([a_char.isdigit() for a_char in a_word]):
+                configuration_values.append(a_word)
+                total_descr_list.remove(a_word)
+        
+        # print("config_values")
+        # print(configuration_values)
         
         # combine all configuration values to one tab
         row['configuration'] = " ".join(configuration_values)
+        # revert total_descr
+        total_descr = " ".join(total_descr_list)
         # row['configuration'] = ['weight', 'cross-sectional area', 'length', 'current', 'voltage rating', 'power rating', 'apparent power rating', 'horsepower', 'angle', 'frequency', 'color temperature', 'capacitance', 'inductance', 'conductors', 'pins', 'phase', 'pole']
 
-        size_props = ['weight','length','diameter']
+        size_props = ['weight','length','diameter','thickness']
         size_values = []
         for a_prop in size_props:
             try:
                 size_values.append(row[a_prop])
                 if (a_prop=='diameter'):
                     size_values.append("DIA")
+                elif (a_prop=='thickness'):
+                    size_values.append("THK")
             except:
                 pass
             
@@ -445,6 +530,7 @@ with open(input_file_path, 'r', encoding='latin-1') as input_file, open(output_f
         # ---------------------
         
         # paste the remaining text under info
+        row["style"] = total_descr
         row["info"] = total_descr
         # check whether data was fully extracted or not
         if row["info"]==row["Item Category"]:
