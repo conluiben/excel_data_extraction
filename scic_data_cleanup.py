@@ -11,7 +11,10 @@ def extract_properties(input_text):
 
     for prop in all_properties:
         # Create a regular expression pattern for the current property
-        pattern = re.compile(rf'\b{re.escape(prop)}\s*(\S+)\b', re.IGNORECASE)
+        if prop=="gauge":
+            pattern = re.compile(rf'\b{re.escape(prop)}\s*(\d+\w*)\b', re.IGNORECASE)
+        else:
+            pattern = re.compile(rf'\b{re.escape(prop)}\s*(\S+)\b', re.IGNORECASE)
 
         # Search for the pattern in the input text
         match = pattern.search(input_text)
@@ -259,13 +262,13 @@ def extract_with(input_string):
 # input_file_path = 'masterlist_03-08/masterlist_orig_0308_csv.csv' 
 # output_file_path = 'masterlist_03-08/masterlist_extracted_0308_csv.csv' 
 # ? Modified for personal assignment
-input_file_path = 'masterlist_03-30/masterlist_clean_raw_0330.csv' 
-output_file_path = 'masterlist_03-30/masterlist_clean_extracted_0330.csv'
+input_file_path = 'masterlist_03-30/masterlist_clean_raw_0331.csv' 
+output_file_path = 'masterlist_03-30/masterlist_clean_extracted_0331.csv'
 # categ_assigned = ['CON14', 'CON17', 'CON26', 'CON35', 'FWK18', 'FWK30', 'FWK31', 'LFO12', 'SPR11', 'SPR32', 'SPR44', 'SPR49', 'SPR53', 'SPR61', 'SPR65', 'SUP13', 'SUP17']
 
 
  
-all_properties = ["P/N", "SN", "model", "brand", "grade","no.","sch","nema"]
+all_properties = ["P/N", "SN", "model", "brand", "grade","no.","sch","nema","gauge"]
 
 # important lists / constants
 units_others = [{
@@ -279,7 +282,7 @@ units_others = [{
     "unit": ["cu. ft.","ml","litre","liter","liters","litres"]
 },{
     "prop": "length",
-    "unit": ["mm","m","in","inch","inches","ft","feet","ml","cm","ft","ft.","meters","mtrs"]
+    "unit": ["mm","m","in","inch","inches","ft","feet","ml","cm","ft","ft.","meters","mtrs","MILLIMETRE"]
 },{
     "prop": "current",
     "unit": ["a","amp","amps","ampere"]
@@ -297,7 +300,7 @@ units_others = [{
     "unit": ["hp"]
 },{
     "prop": "angle",
-    "unit": ["deg"]
+    "unit": ["deg","degrees","degree"]
 },{
     "prop": "frequency",
     "unit": ["rad/s","hz","hertz"]
@@ -412,7 +415,25 @@ with open(input_file_path, 'r', encoding='utf-8') as input_file, open(output_fil
         total_descr = total_descr.replace(";"," ")
         total_descr = total_descr.replace("("," ")
         total_descr = total_descr.replace(")"," ")
-            
+        
+        # ! additional: extract the ITEM CATEGORY NAME from the DESCRIPTION, if applicable
+        # ! MOVED (from after extraction... to start of with-loop)
+        # if row['Item Category'] in total_descr:
+        #     total_descr = re.sub(rf'\b{}')
+        #     # total_descr = total_descr.replace(f"{row['Item Category']}"," ")
+        # else:
+        #     # try second option: split the item category word per word, and splice each word
+        total_descr_list = [e for e in row['Item Category'].split(" ") if e not in ('',None)]
+        for a_word in total_descr_list:
+            total_descr = re.sub(rf'\b{re.escape(a_word)}\b', '', total_descr, flags=re.IGNORECASE).strip()
+            # total_descr = total_descr.replace(a_word," ")
+        
+        # remove extra spaces at ends and in middle
+        total_descr = total_descr.strip().strip(punctuation)
+        # total_descr_list = [e for e in total_descr.split(" ") if e not in ('',None)]
+        # total_descr = " ".join(total_descr_list)
+        
+        
         # ! extract the properties
         result_properties, total_descr = extract_properties(total_descr)
         for prop, value in result_properties.items():
@@ -481,7 +502,7 @@ with open(input_file_path, 'r', encoding='utf-8') as input_file, open(output_fil
         # TODO: extract all properties and combine cells!
         # configuration_props = ['current', 'voltage rating', 'power rating', 'apparent power rating', 'horsepower', 'angle', 'frequency', 'color temperature', 'capacitance', 'inductance', 'conductors', 'pins', 'phase', 'pole','hole','force','gang','grade','no.']
         configuration_props = [a_prop for a_prop in units_others_list if a_prop not in ("weight","volume","length")]
-        configuration_props.extend(['grade','no.'])
+        configuration_props.extend(['grade','no.','gauge'])
         configuration_values = []
         for a_prop in configuration_props:
             try:
@@ -491,15 +512,13 @@ with open(input_file_path, 'r', encoding='utf-8') as input_file, open(output_fil
                 elif a_prop=="no." and row[a_prop] not in [None,""]:
                     configuration_values.append("No.")
                     configuration_values.append(row[a_prop])
+                elif a_prop=="gauge" and row[a_prop] not in [None,""]:
+                    configuration_values.append("GAUGE")
+                    configuration_values.append(row[a_prop])
                 else:
                     configuration_values.append(row[a_prop])
             except:
                 pass
-        
-        # ! additional: extract the ITEM CATEGORY NAME from the DESCRIPTION, if applicable
-        if row['Item Category'] in total_descr:
-            total_descr = total_descr.replace(row['Item Category']," ")
-            total_descr = total_descr.strip().strip(punctuation)
         
         
         # ! additional: extract remaining words from the description which have a numerical value
